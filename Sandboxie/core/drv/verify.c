@@ -816,115 +816,17 @@ _FX NTSTATUS KphValidateCertificate()
 
         LARGE_INTEGER expiration_date = { 0 };
 
-        if (!type) // type is mandatory 
-            ;
-        else if (_wcsicmp(type, L"CONTRIBUTOR") == 0)
-            Verify_CertInfo.type = eCertContributor;
-        else if (_wcsicmp(type, L"ETERNAL") == 0)
-            Verify_CertInfo.type = eCertEternal;
-        else if (_wcsicmp(type, L"BUSINESS") == 0)
-            Verify_CertInfo.type = eCertBusiness;
-        else if (_wcsicmp(type, L"EVALUATION") == 0 || _wcsicmp(type, L"TEST") == 0)
-            Verify_CertInfo.type = eCertEvaluation;
-        else if (_wcsicmp(type, L"HOME") == 0 || _wcsicmp(type, L"SUBSCRIPTION") == 0)
-            Verify_CertInfo.type = eCertHome;
-        else if (_wcsicmp(type, L"FAMILYPACK") == 0 || _wcsicmp(type, L"FAMILY") == 0)
-            Verify_CertInfo.type = eCertFamily;
-        // patreon >>>
-        else if (wcsstr(type, L"PATREON") != NULL) // TYPE: [CLASS]_PATREON-[LEVEL]
-        {    
-            if(_wcsnicmp(type, L"GREAT", 5) == 0)
-                Verify_CertInfo.type = eCertGreatPatreon;
-            else if (_wcsnicmp(type, L"ENTRY", 5) == 0) { // new patreons get only 3 montgs for start
-                Verify_CertInfo.type = eCertEntryPatreon;
-                expiration_date.QuadPart = cert_date.QuadPart + KphGetDateInterval(0, 3, 0);
-            } else
-                Verify_CertInfo.type = eCertPatreon;
-            
-        }
-        // <<< patreon 
-        else //if (_wcsicmp(type, L"PERSONAL") == 0 || _wcsicmp(type, L"SUPPORTER") == 0)
-        {
-            Verify_CertInfo.type = eCertPersonal;
-        }
-
+        Verify_CertInfo.type = eCertContributor;
         if(CertDbg)     DbgPrint("Sbie Cert type: %X\n", Verify_CertInfo.type);
 
-        if (CERT_IS_TYPE(Verify_CertInfo, eCertEternal))
-            Verify_CertInfo.level = eCertMaxLevel;
-        else if (CERT_IS_TYPE(Verify_CertInfo, eCertEvaluation)) // in evaluation the level field holds the amount of days to allow evaluation for
-        {
-            if(days) expiration_date.QuadPart = cert_date.QuadPart + KphGetDateInterval((CSHORT)(days), 0, 0);
-            else expiration_date.QuadPart = cert_date.QuadPart + KphGetDateInterval((CSHORT)(level ? _wtoi(level) : 7), 0, 0); // x days, default 7
-            Verify_CertInfo.level = eCertAdvanced;
-        }
-        else if (!level || _wcsicmp(level, L"STANDARD") == 0) // not used, default does not have explicit level
-            Verify_CertInfo.level = eCertStandard;
-        else if (_wcsicmp(level, L"ADVANCED") == 0)
-        {
-            if(Verify_CertInfo.type == eCertPatreon || Verify_CertInfo.type == eCertEntryPatreon)
-                Verify_CertInfo.level = eCertAdvanced1;
-            else
-                Verify_CertInfo.level = eCertAdvanced;
-        }
-        // scheme 1.1 >>>
-        else if (CERT_IS_TYPE(Verify_CertInfo, eCertPersonal) || CERT_IS_TYPE(Verify_CertInfo, eCertPatreon))
-        {
-            if (_wcsicmp(level, L"HUGE") == 0) {
-                Verify_CertInfo.type = eCertEternal;
-                Verify_CertInfo.level = eCertMaxLevel;
-            }
-            else if (_wcsicmp(level, L"LARGE") == 0 && cert_date.QuadPart < KphGetDate(1, 04, 2022)) { // initial batch of semi perpetual large certs
-                Verify_CertInfo.level = eCertAdvanced1;
-                expiration_date.QuadPart = -2;
-            }
-            // todo: 01.09.2025: remove code for expired case LARGE
-            else if (_wcsicmp(level, L"LARGE") == 0) { // 2 years - personal
-                if(CERT_IS_TYPE(Verify_CertInfo, eCertPatreon))
-                    Verify_CertInfo.level = eCertStandard2;
-                else
-                    Verify_CertInfo.level = eCertAdvanced;
-                expiration_date.QuadPart = cert_date.QuadPart + KphGetDateInterval(0, 0, 2); // 2 years
-            }
-            // todo: 01.09.2024: remove code for expired case MEDIUM
-            else if (_wcsicmp(level, L"MEDIUM") == 0) { // 1 year - personal
-                Verify_CertInfo.level = eCertStandard2;
-            }
-            // todo: 01.09.2024: remove code for expired case SMALL
-            else if (_wcsicmp(level, L"SMALL") == 0) { // 1 year - subscription
-                Verify_CertInfo.level = eCertStandard2;
-                Verify_CertInfo.type = eCertHome;
-            }
-            else
-                Verify_CertInfo.level = eCertStandard;
-        }
-        // <<< scheme 1.1
+        Verify_CertInfo.level = eCertMaxLevel;
         
         if(CertDbg)     DbgPrint("Sbie Cert level: %X\n", Verify_CertInfo.level);
 
-        if (CERT_IS_TYPE(Verify_CertInfo, eCertEternal))
-            expiration_date.QuadPart = -1; // at the end of time (never)
-        else if (!expiration_date.QuadPart) {
-            if (days) expiration_date.QuadPart = cert_date.QuadPart + KphGetDateInterval((CSHORT)(days), 0, 0);
-            else expiration_date.QuadPart = cert_date.QuadPart + KphGetDateInterval(0, 0, 1); // default 1 year, unless set differently already
-        }
-
+        expiration_date.QuadPart = -1; // at the end of time (never)
+        
         // check if this is a subscription type certificate
         BOOLEAN isSubscription = CERT_IS_SUBSCRIPTION(Verify_CertInfo);
-
-        if (expiration_date.QuadPart == -2)
-            Verify_CertInfo.expired = 1; // but not outdated
-        else if (expiration_date.QuadPart != -1) 
-        {
-            // check if this certificate is expired
-            if (expiration_date.QuadPart < LocalTime.QuadPart)
-                Verify_CertInfo.expired = 1;
-            Verify_CertInfo.expirers_in_sec = (ULONG)((expiration_date.QuadPart - LocalTime.QuadPart) / 10000000ll); // 100ns steps -> 1sec
-
-            // check if a non subscription type certificate is valid for the current build
-            if (!isSubscription && expiration_date.QuadPart < BuildDate.QuadPart)
-                Verify_CertInfo.outdated = 1;
-        }
 
         // check if the certificate is valid
         if (isSubscription ? Verify_CertInfo.expired : Verify_CertInfo.outdated) 
