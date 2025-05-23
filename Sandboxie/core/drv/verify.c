@@ -914,37 +914,20 @@ _FX NTSTATUS KphValidateCertificate()
                 option = end + 1;
             }
     }
-    else {
-        Verify_CertInfo.opt_desk = 1;
-        Verify_CertInfo.opt_net = 1;
-        Verify_CertInfo.opt_enc = 1;
-        Verify_CertInfo.opt_sec = 1;
-    }
+	
+	Verify_CertInfo.opt_desk = 1;
+	Verify_CertInfo.opt_net = 1;
+	Verify_CertInfo.opt_enc = 1;
+	Verify_CertInfo.opt_sec = 1;
 
-    if (CERT_IS_TYPE(Verify_CertInfo, eCertEternal))
-        expiration_date.QuadPart = -1; // at the end of time (never)
-    else if (!expiration_date.QuadPart) {
-        if (days) expiration_date.QuadPart = cert_date.QuadPart + KphGetDateInterval((CSHORT)(days), 0, 0);
-        else expiration_date.QuadPart = cert_date.QuadPart + KphGetDateInterval(0, 0, 1); // default 1 year, unless set differently already
-    }
+    expiration_date.QuadPart = -1; // at the end of time (never)
 
     // check if this is a subscription type certificate
     BOOLEAN isSubscription = CERT_IS_SUBSCRIPTION(Verify_CertInfo);
 
-    if (expiration_date.QuadPart == -2)
-        Verify_CertInfo.expired = 1; // but not outdated
-    else if (expiration_date.QuadPart != -1) 
-    {
-        // check if this certificate is expired
-        if (expiration_date.QuadPart < LocalTime.QuadPart)
-            Verify_CertInfo.expired = 1;
-        Verify_CertInfo.expirers_in_sec = (ULONG)((expiration_date.QuadPart - LocalTime.QuadPart) / 10000000ll); // 100ns steps -> 1sec
-
-        // check if a non subscription type certificate is valid for the current build
-        if (!isSubscription && expiration_date.QuadPart < BuildDate.QuadPart)
-            Verify_CertInfo.outdated = 1;
-    }
-
+    Verify_CertInfo.expired = 0;
+    Verify_CertInfo.outdated = 0;
+	
     // check if the certificate is valid
     if (isSubscription ? Verify_CertInfo.expired : Verify_CertInfo.outdated) 
     {
@@ -982,6 +965,9 @@ _FX NTSTATUS KphValidateCertificate()
         }
     }
 
+	Verify_CertInfo.active = 1;
+	
+
 CleanupExit:
     if(CertDbg)     DbgPrint("Sbie Cert status: %08x; active: %d\n", status, Verify_CertInfo.active);
 
@@ -1001,7 +987,7 @@ CleanupExit:
 
     if(stream)      Stream_Close(stream);
 
-	status = NT_SUCCESS;
+	status = STATUS_SUCCESS;
     return status;
 }
 
